@@ -50,12 +50,24 @@ async def run_serff_search(search_request: SearchRequest) -> dict:
                 "a.ui-selectcheckboxmenu-close:has-text('Close')"
             ).click()
 
-            await page.locator('[id="simpleSearch:productName"]').fill(
-                search_request.insurance_product_name
-            )
+            if search_request.insurance_product_name:
+                await page.locator('[id="simpleSearch:productName"]').fill(
+                    search_request.insurance_product_name
+                )
 
-            # TODO: Add in a search request for contains vs the other one
-            await page.locator('label[for="simpleSearch:productNameOptions:1"]').click()
+                # TODO: Add in a search request for contains vs the other one
+                await page.locator(
+                    'label[for="simpleSearch:productNameOptions:1"]'
+                ).click()
+
+            if search_request.company_name:
+                await page.locator('[id="simpleSearch:companyName"]').fill(
+                    search_request.company_name
+                )
+                await page.locator(
+                    'label[for="simpleSearch:productNameOptions:1"]'
+                ).click()
+                time.sleep(5)
 
             await page.locator('[id="simpleSearch:saveBtn"]').click()
 
@@ -98,7 +110,12 @@ async def run_serff_search(search_request: SearchRequest) -> dict:
                     if column_name:
                         row_data[column_name] = cell_text.strip()
 
-                if row_data.get("Filing Type") == "Form":
+                if (
+                    row_data.get("Filing Type") == "Form"
+                    or row_data.get("Filing Type") == "Policy Form"
+                    or row_data.get("Filing Type") == "Form/Rule"
+                    or row_data.get("Filing Type") == "Form/Rate/Rule"
+                ):
                     row_data["row_index"] = row_idx
                     parsed_table_data.append(row_data)
 
