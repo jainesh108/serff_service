@@ -13,8 +13,9 @@ async def run_serff_search(search_request: SearchRequest) -> dict:
     Accepts raw python arguments and returns a dictionary of results.
     """
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        page = await browser.new_page()
+        browser = await p.chromium.launch(headless=False, args=["--start-maximized"])
+        context = await browser.new_context(no_viewport=True)
+        page = await context.new_page()
 
         try:
             await page.goto(
