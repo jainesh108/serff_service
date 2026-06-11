@@ -103,44 +103,68 @@ async def run_serff_search(search_request: SearchRequest) -> dict:
 
             print(parsed_table_data)
             await page.locator('tr[data-ri="1"]').click()
-
             unique_id = str(uuid.uuid4())
-            target_path = Path(".") / unique_id
-            target_path.mkdir(parents=True, exist_ok=True)
-            print(f"Folder created successfully at: {target_path.resolve()}")
+            session_root_path = Path(".") / unique_id
+            session_root_path.mkdir(parents=True, exist_ok=True)
+            print(
+                f"Session root folder created successfully at: {session_root_path.resolve()}"
+            )
 
             for data in parsed_table_data:
                 row_index = data["row_index"]
-                company_name = data["Company Name"]
+
+                # 2. Sanitize Company Name for safe directory naming
+                company_name = (
+                    data["Company Name"]
+                    .replace(" ", "_")
+                    .replace("&", "and")
+                    .replace(",", "")
+                    .replace(".", "")
+                )
+
+                # 3. CRITICAL: Clean the slashes from the tracking number so it acts as a filename, not a folder path
                 serff_tracking_number = (
                     data["SERFF Tracking Number"]
                     .replace(" ", "_")
                     .replace("&", "and")
                     .replace(",", "")
                     .replace(".", "")
+                    .replace("/", "-")  # Overwrite slashes with dashes
                     .lower()
                 )
-                target_path = Path(".") / unique_id / company_name
-                target_path.mkdir(parents=True, exist_ok=True)
+
+                # 4. Set up the nested company directory inside your unique UUID session root
+                company_dir = session_root_path / company_name
+                company_dir.mkdir(parents=True, exist_ok=True)
+
+                # 5. Navigate into the specific row
                 await page.locator(f'tr[data-ri="{row_index}"]').click()
 
+                # 6. Select the current versions
                 form_button = page.locator("#formAttachmentSelectCurrentButton")
                 await form_button.wait_for(state="attached", timeout=5000)
                 await form_button.click()
                 await page.wait_for_timeout(300)
 
+                # 7. Listen for the file stream and click download
                 async with page.expect_download() as download_info:
                     await page.locator('[id="summaryForm:downloadLink"]').click()
                 download = await download_info.value
 
-                # 2. Save the ZIP file locally to your machine
-                zip_path = target_path / f"{serff_tracking_number}.zip"
+                # 8. Save the ZIP file safely with its explicit extension
+                zip_path = company_dir / f"{serff_tracking_number}.zip"
                 await download.save_as(zip_path)
-
                 print(f"Zip file successfully downloaded and saved to {zip_path}")
+
+                # 9. Return to the main search grid
                 await page.get_by_role(
                     "button", name="Return to Search Results"
                 ).click()
+
+                # --- CRITICAL FIX: Explicitly pause loop until the search results table re-renders ---
+                await page.wait_for_selector(
+                    ".ui-datatable-tablewrapper table", timeout=10000
+                )
             time.sleep(3)
             # if company_name:
             #     await page.fill("input#company-name-input", company_name)
